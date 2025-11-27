@@ -1,307 +1,808 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>For the One I Love</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+import React, { useState, useEffect } from 'react';
+import { Upload, Download, Edit2, Trash2, Share2, Eye, Plus, Search, Lock, User, X, Users } from 'lucide-react';
 
-        body {
-            font-family: 'Georgia', serif;
-            overflow-x: hidden;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            position: relative;
-        }
+export default function NotesManager() {
+  const [notes, setNotes] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
+  const [password, setPassword] = useState('');
+  const [studentName, setStudentName] = useState('');
+  const [activeStudents, setActiveStudents] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [enteredOtp, setEnteredOtp] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [newNoteTitle, setNewNoteTitle] = useState('');
+  const [newNoteContent, setNewNoteContent] = useState('');
+  
+  const ADMIN_PASSWORD = 'galgotia2025';
+  const ADMIN_EMAIL = 'anudityagautam059@gmail.com';
 
-        .hearts-background {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1;
-        }
+  useEffect(() => {
+    loadNotes();
+    if (isAdmin) {
+      loadActiveStudents();
+    }
+  }, [isAdmin]);
 
-        .heart {
-            position: absolute;
-            font-size: 20px;
-            color: rgba(255, 255, 255, 0.3);
-            animation: float 15s infinite;
-        }
-
-        @keyframes float {
-            0% {
-                transform: translateY(100vh) rotate(0deg);
-                opacity: 0;
+  const loadNotes = async () => {
+    try {
+      const keys = await window.storage.list('note:');
+      if (keys && keys.keys) {
+        const loadedNotes = await Promise.all(
+          keys.keys.map(async (key) => {
+            try {
+              const result = await window.storage.get(key);
+              return result ? JSON.parse(result.value) : null;
+            } catch {
+              return null;
             }
-            10% {
-                opacity: 1;
-            }
-            90% {
-                opacity: 1;
-            }
-            100% {
-                transform: translateY(-100vh) rotate(360deg);
-                opacity: 0;
-            }
-        }
+          })
+        );
+        setNotes(loadedNotes.filter(n => n !== null));
+      }
+    } catch (error) {
+      console.error('Error loading notes:', error);
+    }
+  };
 
-        .container {
-            position: relative;
-            z-index: 2;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .photo-frame {
-            width: 250px;
-            height: 250px;
-            border-radius: 50%;
-            border: 8px solid rgba(255, 255, 255, 0.9);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            margin-bottom: 40px;
-            animation: pulse 3s ease-in-out infinite;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 80px;
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  const loadActiveStudents = async () => {
+    try {
+      const keys = await window.storage.list('student:');
+      if (keys && keys.keys) {
+        const students = await Promise.all(
+          keys.keys.map(async (key) => {
+            try {
+              const result = await window.storage.get(key);
+              return result ? JSON.parse(result.value) : null;
+            } catch {
+              return null;
             }
-            50% {
-                transform: scale(1.05);
-                box-shadow: 0 25px 80px rgba(255, 105, 180, 0.4);
-            }
-        }
+          })
+        );
+        setActiveStudents(students.filter(s => s !== null));
+      }
+    } catch (error) {
+      console.error('Error loading students:', error);
+    }
+  };
 
-        .content-box {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 50px;
-            border-radius: 30px;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.2);
-            max-width: 600px;
-            text-align: center;
-            backdrop-filter: blur(10px);
-        }
+  const handleAdminLogin = () => {
+    if (password === ADMIN_PASSWORD) {
+      setIsAdmin(true);
+      setPassword('');
+    } else {
+      alert('Incorrect password!');
+    }
+  };
 
-        .main-text {
-            font-size: 48px;
-            font-weight: bold;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 30px;
-            animation: fadeInUp 1s ease-out;
-        }
+  const handleStudentLogin = async () => {
+    if (studentName.trim()) {
+      const studentId = `student:${Date.now()}`;
+      const student = {
+        id: studentId,
+        name: studentName.trim(),
+        loginTime: new Date().toISOString()
+      };
+      
+      try {
+        await window.storage.set(studentId, JSON.stringify(student));
+        setIsStudent(true);
+        setStudentName('');
+      } catch (error) {
+        alert('Error logging in: ' + error.message);
+      }
+    } else {
+      alert('Please enter your name!');
+    }
+  };
 
-        .animated-love-text {
-            font-size: 32px;
-            color: #e91e63;
-            margin: 30px 0;
-            font-style: italic;
-            position: relative;
-            animation: slideIn 2s ease-out;
-        }
+  const handleForgotPassword = () => {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(otp);
+    setOtpSent(true);
+    console.log('OTP sent to', ADMIN_EMAIL, ':', otp);
+    alert(`OTP has been sent to ${ADMIN_EMAIL}\n\nFor demo purposes, your OTP is: ${otp}`);
+  };
 
-        .word {
-            display: inline-block;
-            animation: bounce 2s ease-in-out infinite;
-        }
+  const handleVerifyOtp = () => {
+    if (enteredOtp === generatedOtp) {
+      alert(`Your password is: ${ADMIN_PASSWORD}`);
+      setShowForgotPassword(false);
+      setOtpSent(false);
+      setEnteredOtp('');
+      setGeneratedOtp('');
+    } else {
+      alert('Invalid OTP! Please try again.');
+    }
+  };
 
-        .word:nth-child(1) { animation-delay: 0s; }
-        .word:nth-child(2) { animation-delay: 0.1s; }
-        .word:nth-child(3) { animation-delay: 0.2s; }
-        .word:nth-child(4) { animation-delay: 0.3s; }
-        .word:nth-child(5) { animation-delay: 0.4s; }
-        .word:nth-child(6) { animation-delay: 0.5s; }
-        .word:nth-child(7) { animation-delay: 0.6s; }
+  const handleCloseForgotPassword = () => {
+    setShowForgotPassword(false);
+    setOtpSent(false);
+    setEnteredOtp('');
+    setGeneratedOtp('');
+  };
 
-        @keyframes bounce {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            50% {
-                transform: translateY(-10px);
-            }
-        }
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+    // Show loading indicator
+    const loadingMsg = alert('Uploading file, please wait...');
 
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-50px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const noteId = `note:${Date.now()}`;
+          const newNote = {
+            id: noteId,
+            title: file.name,
+            content: event.target.result,
+            fileType: file.type,
+            uploadDate: new Date().toISOString(),
+            size: file.size
+          };
+          
+          await window.storage.set(noteId, JSON.stringify(newNote));
+          await loadNotes();
+          setShowUploadForm(false);
+          alert('✓ File uploaded successfully!\n\nFile: ' + file.name);
+          
+          // Reset file input
+          e.target.value = '';
+        } catch (storageError) {
+          console.error('Storage error:', storageError);
+          alert('Error saving file: ' + storageError.message);
         }
+      };
+      
+      reader.onerror = (error) => {
+        console.error('File reading error:', error);
+        alert('Error reading file. Please try again.');
+      };
+      
+      // Read file as base64
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Error uploading file: ' + error.message);
+    }
+  };
 
-        .message {
-            font-size: 18px;
-            line-height: 1.8;
-            color: #555;
-            margin: 25px 0;
-            animation: fadeInUp 1.5s ease-out;
-        }
+  const handleAddTextNote = async () => {
+    if (!newNoteTitle.trim() || !newNoteContent.trim()) {
+      alert('Please enter both title and content!');
+      return;
+    }
 
-        .sparkle {
-            display: inline-block;
-            animation: sparkle 1.5s ease-in-out infinite;
-        }
+    try {
+      const noteId = `note:${Date.now()}`;
+      const newNote = {
+        id: noteId,
+        title: newNoteTitle.trim(),
+        content: newNoteContent.trim(),
+        fileType: 'text/plain',
+        uploadDate: new Date().toISOString(),
+        size: newNoteContent.length
+      };
+      
+      await window.storage.set(noteId, JSON.stringify(newNote));
+      await loadNotes();
+      setShowUploadForm(false);
+      setNewNoteTitle('');
+      setNewNoteContent('');
+      alert('Note created successfully!');
+    } catch (error) {
+      alert('Error adding note: ' + error.message);
+    }
+  };
 
-        @keyframes sparkle {
-            0%, 100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.5;
-                transform: scale(1.2);
-            }
+  const handleEdit = async (note) => {
+    const newTitle = prompt('Edit title:', note.title);
+    if (newTitle && newTitle.trim()) {
+      const newContent = prompt('Edit content:', note.content);
+      if (newContent !== null) {
+        const updatedNote = { ...note, title: newTitle.trim(), content: newContent };
+        try {
+          await window.storage.set(note.id, JSON.stringify(updatedNote));
+          await loadNotes();
+          alert('Note updated successfully!');
+        } catch (error) {
+          alert('Error updating note: ' + error.message);
         }
+      }
+    }
+  };
 
-        .footer-heart {
-            font-size: 60px;
-            color: #e91e63;
-            margin-top: 30px;
-            animation: heartbeat 1.5s ease-in-out infinite;
-        }
+  const handleDelete = async (noteId) => {
+    if (window.confirm('Are you sure you want to delete this note?')) {
+      try {
+        await window.storage.delete(noteId);
+        await loadNotes();
+        alert('Note deleted successfully!');
+      } catch (error) {
+        alert('Error deleting note: ' + error.message);
+      }
+    }
+  };
 
-        @keyframes heartbeat {
-            0%, 100% {
-                transform: scale(1);
-            }
-            25% {
-                transform: scale(1.2);
-            }
-            50% {
-                transform: scale(1);
-            }
-            75% {
-                transform: scale(1.1);
-            }
+  const handleDownload = (note) => {
+    try {
+      let blob;
+      if (note.content.startsWith('data:')) {
+        // Handle base64 encoded files
+        const base64Data = note.content.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
+        const byteArray = new Uint8Array(byteNumbers);
+        blob = new Blob([byteArray], { type: note.fileType });
+      } else {
+        // Handle text content
+        blob = new Blob([note.content], { type: note.fileType });
+      }
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = note.title;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Error downloading file: ' + error.message);
+    }
+  };
 
-        .stars {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1;
-        }
+  const handleShare = (note) => {
+    const link = `${window.location.origin}?note=${note.id}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setShareLink(link);
+      setTimeout(() => setShareLink(''), 3000);
+    });
+  };
 
-        .star {
-            position: absolute;
-            width: 3px;
-            height: 3px;
-            background: white;
-            border-radius: 50%;
-            animation: twinkle 3s ease-in-out infinite;
-        }
+  const handleViewNote = (note) => {
+    if (note.content.startsWith('data:')) {
+      // For files, open in new tab
+      const newWindow = window.open();
+      if (note.fileType.includes('pdf')) {
+        newWindow.document.write(`<iframe src="${note.content}" style="width:100%;height:100%;border:none;"></iframe>`);
+      } else if (note.fileType.includes('image')) {
+        newWindow.document.write(`<img src="${note.content}" style="max-width:100%;">`);
+      } else {
+        newWindow.document.write(`<pre>${note.content}</pre>`);
+      }
+    } else {
+      // For text content, show in alert
+      alert(note.content);
+    }
+  };
 
-        @keyframes twinkle {
-            0%, 100% {
-                opacity: 0.3;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 1;
-                transform: scale(1.5);
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="hearts-background" id="heartsContainer"></div>
-    <div class="stars" id="starsContainer"></div>
-    
-    <div class="container">
-        <div class="photo-frame">
-            💕
+  const filteredNotes = notes.filter(note =>
+    note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    note.content.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  };
+
+  // Login Screen
+  if (!isAdmin && !isStudent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">College Notes Manager</h1>
+            <p className="text-gray-600">Choose your login type</p>
+          </div>
+
+          {/* Admin Login */}
+          <div className="mb-6 p-4 border-2 border-indigo-200 rounded-lg bg-indigo-50">
+            <div className="flex items-center gap-2 mb-3">
+              <Lock className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-semibold text-gray-800">Admin Login</h2>
+            </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+              placeholder="Enter admin password"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
+            />
+            <button
+              onClick={handleAdminLogin}
+              className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition font-semibold mb-2"
+            >
+              Login as Admin
+            </button>
+            <button
+              onClick={() => setShowForgotPassword(true)}
+              className="w-full text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+            >
+              Forgot Password?
+            </button>
+          </div>
+
+          {/* Student Login */}
+          <div className="p-4 border-2 border-green-200 rounded-lg bg-green-50">
+            <div className="flex items-center gap-2 mb-3">
+              <User className="w-5 h-5 text-green-600" />
+              <h2 className="text-lg font-semibold text-gray-800">Student Access</h2>
+            </div>
+            <input
+              type="text"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleStudentLogin()}
+              placeholder="Enter your name"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 mb-2"
+            />
+            <button
+              onClick={handleStudentLogin}
+              className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-semibold"
+            >
+              Access as Student
+            </button>
+          </div>
         </div>
-        
-        <div class="content-box">
-            <div class="main-text">I Love You Dipali</div>
-            
-            <div class="animated-love-text">
-                <span class="word">I</span>
-                <span class="word">Love</span>
-                <span class="word">You</span>
-                <span class="word">More</span>
-                <span class="word">Than</span>
-                <span class="word">You</span>
-                <span class="word">Know</span>
+
+        {/* Forgot Password Modal */}
+        {showForgotPassword && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Forgot Password</h2>
+                <button onClick={handleCloseForgotPassword}>
+                  <X className="w-6 h-6 text-gray-500 hover:text-gray-700" />
+                </button>
+              </div>
+              
+              {!otpSent ? (
+                <div className="space-y-4">
+                  <p className="text-gray-600">
+                    An OTP will be sent to: <strong>{ADMIN_EMAIL}</strong>
+                  </p>
+                  <button
+                    onClick={handleForgotPassword}
+                    className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold"
+                  >
+                    Send OTP
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-green-600 text-sm">
+                    ✓ OTP has been sent to {ADMIN_EMAIL}
+                  </p>
+                  <input
+                    type="text"
+                    value={enteredOtp}
+                    onChange={(e) => setEnteredOtp(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleVerifyOtp()}
+                    placeholder="Enter 6-digit OTP"
+                    maxLength="6"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-2xl tracking-widest"
+                  />
+                  <button
+                    onClick={handleVerifyOtp}
+                    className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-semibold"
+                  >
+                    Verify OTP
+                  </button>
+                  <button
+                    onClick={handleForgotPassword}
+                    className="w-full text-indigo-600 hover:text-indigo-800 text-sm"
+                  >
+                    Resend OTP
+                  </button>
+                </div>
+              )}
             </div>
-            
-            <div class="message">
-                Every moment with you feels like magic. You are my sunshine on cloudy days, my reason to smile, and the beat of my heart. <span class="sparkle">✨</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Admin Dashboard
+  if (isAdmin) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+                <p className="text-gray-600">Manage notes and view active students</p>
+              </div>
+              <button
+                onClick={() => setIsAdmin(false)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+              >
+                <Lock className="w-4 h-4" />
+                Logout
+              </button>
             </div>
-            
-            <div class="message">
-                Words can never fully express how much you mean to me, but I hope you feel it in every glance, every touch, and every moment we share together.
+
+            {/* Active Students Section */}
+            <div className="bg-blue-50 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Users className="w-5 h-5 text-blue-600" />
+                <h2 className="text-lg font-semibold text-gray-800">
+                  Active Students ({activeStudents.length})
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {activeStudents.map(student => (
+                  <div key={student.id} className="bg-white p-2 rounded border text-sm">
+                    <div className="font-semibold text-gray-800">{student.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(student.loginTime).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+                {activeStudents.length === 0 && (
+                  <div className="col-span-full text-gray-500 text-center py-2">
+                    No active students
+                  </div>
+                )}
+              </div>
             </div>
-            
-            <div class="footer-heart">❤️</div>
-            
-            <div style="margin-top: 30px; font-size: 16px; color: #888; font-style: italic;">
-                - Anuditya
+
+            {/* Search and Actions */}
+            <div className="flex gap-3 flex-wrap">
+              <div className="flex-1 min-w-64">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search notes..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUploadForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+              >
+                <Plus className="w-5 h-5" />
+                Add Note
+              </button>
             </div>
+          </div>
+
+          {/* Share Link Notification */}
+          {shareLink && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4">
+              Link copied to clipboard! Share: {shareLink}
+            </div>
+          )}
+
+          {/* Upload Form Modal */}
+          {showUploadForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Add New Note</h2>
+                  <button 
+                    onClick={() => {
+                      setShowUploadForm(false);
+                      setNewNoteTitle('');
+                      setNewNoteContent('');
+                    }}
+                    type="button"
+                  >
+                    <X className="w-6 h-6 text-gray-500 hover:text-gray-700" />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Upload PDF Option */}
+                  <div className="border-2 border-red-200 rounded-lg p-5 bg-red-50 hover:border-red-400 transition">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+                        <Upload className="w-6 h-6 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-800">Upload PDF</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Upload PDF documents, presentations, or scanned notes
+                    </p>
+                    <input
+                      type="file"
+                      id="pdfUploadInput"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      accept=".pdf"
+                    />
+                    <label
+                      htmlFor="pdfUploadInput"
+                      className="block w-full py-3 px-4 bg-red-600 text-white text-center rounded-lg hover:bg-red-700 cursor-pointer font-semibold transition"
+                    >
+                      📄 Choose PDF File
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      Accepted: .pdf files only
+                    </p>
+                  </div>
+
+                  {/* Upload Text File Option */}
+                  <div className="border-2 border-blue-200 rounded-lg p-5 bg-blue-50 hover:border-blue-400 transition">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <Upload className="w-6 h-6 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-800">Upload Text File</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Upload .txt or .doc files with your notes
+                    </p>
+                    <input
+                      type="file"
+                      id="textUploadInput"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      accept=".txt,.doc,.docx"
+                    />
+                    <label
+                      htmlFor="textUploadInput"
+                      className="block w-full py-3 px-4 bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 cursor-pointer font-semibold transition"
+                    >
+                      📝 Choose Text File
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      Accepted: .txt, .doc, .docx
+                    </p>
+                  </div>
+
+                  {/* Upload Image Option */}
+                  <div className="border-2 border-purple-200 rounded-lg p-5 bg-purple-50 hover:border-purple-400 transition">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                        <Upload className="w-6 h-6 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-800">Upload Image</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Upload photos of handwritten notes or diagrams
+                    </p>
+                    <input
+                      type="file"
+                      id="imageUploadInput"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      accept=".jpg,.jpeg,.png,.gif"
+                    />
+                    <label
+                      htmlFor="imageUploadInput"
+                      className="block w-full py-3 px-4 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 cursor-pointer font-semibold transition"
+                    >
+                      🖼️ Choose Image File
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      Accepted: .jpg, .png, .gif
+                    </p>
+                  </div>
+
+                  {/* Create Text Note Option */}
+                  <div className="border-2 border-green-200 rounded-lg p-5 bg-green-50 hover:border-green-400 transition">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                        <Edit2 className="w-6 h-6 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-800">Create New Note</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Write a note directly in the browser
+                    </p>
+                    <input
+                      type="text"
+                      value={newNoteTitle}
+                      onChange={(e) => setNewNoteTitle(e.target.value)}
+                      placeholder="Note title..."
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg mb-2 focus:border-green-500 focus:outline-none text-sm"
+                    />
+                    <textarea
+                      value={newNoteContent}
+                      onChange={(e) => setNewNoteContent(e.target.value)}
+                      placeholder="Write your note here..."
+                      rows="3"
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none resize-none text-sm mb-2"
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleAddTextNote();
+                      }}
+                      type="button"
+                      className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition"
+                    >
+                      ✓ Create Note
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Notes Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredNotes.map(note => (
+              <div key={note.id} className="bg-white rounded-lg shadow-lg p-5 hover:shadow-xl transition">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="font-bold text-lg text-gray-800 truncate flex-1">{note.title}</h3>
+                </div>
+                
+                <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                  {note.content.substring(0, 100)}...
+                </p>
+                
+                <div className="text-xs text-gray-500 mb-4">
+                  <div>Size: {formatFileSize(note.size)}</div>
+                  <div>Date: {new Date(note.uploadDate).toLocaleDateString()}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleViewNote(note)}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleDownload(note)}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                  <button
+                    onClick={() => handleShare(note)}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Share
+                  </button>
+                  <button
+                    onClick={() => handleEdit(note)}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(note.id)}
+                    className="col-span-2 flex items-center justify-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {filteredNotes.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-lg shadow-lg">
+              <Upload className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-xl font-semibold text-gray-600 mb-2">No notes yet</h3>
+              <p className="text-gray-500">Click "Add Note" to upload your first note</p>
+            </div>
+          )}
         </div>
+      </div>
+    );
+  }
+
+  // Student Dashboard
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Student Portal</h1>
+              <p className="text-gray-600">View and download notes</p>
+            </div>
+            <button
+              onClick={() => setIsStudent(false)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+            >
+              <User className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search notes..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+        </div>
+
+        {/* Share Link Notification */}
+        {shareLink && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4">
+            Link copied to clipboard! Share: {shareLink}
+          </div>
+        )}
+
+        {/* Notes Grid - Student View */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredNotes.map(note => (
+            <div key={note.id} className="bg-white rounded-lg shadow-lg p-5 hover:shadow-xl transition">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-lg text-gray-800 truncate flex-1">{note.title}</h3>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                {note.content.substring(0, 100)}...
+              </p>
+              
+              <div className="text-xs text-gray-500 mb-4">
+                <div>Size: {formatFileSize(note.size)}</div>
+                <div>Date: {new Date(note.uploadDate).toLocaleDateString()}</div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => handleViewNote(note)}
+                  className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </button>
+                <button
+                  onClick={() => handleDownload(note)}
+                  className="flex items-center justify-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button
+                  onClick={() => handleShare(note)}
+                  className="flex items-center justify-center gap-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {filteredNotes.length === 0 && (
+          <div className="text-center py-12 bg-white rounded-lg shadow-lg">
+            <Eye className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No notes available</h3>
+            <p className="text-gray-500">Check back later for new notes</p>
+          </div>
+        )}
+      </div>
     </div>
-
-    <script>
-        // Create floating hearts
-        const heartsContainer = document.getElementById('heartsContainer');
-        for (let i = 0; i < 15; i++) {
-            const heart = document.createElement('div');
-            heart.className = 'heart';
-            heart.innerHTML = '❤️';
-            heart.style.left = Math.random() * 100 + '%';
-            heart.style.animationDelay = Math.random() * 5 + 's';
-            heart.style.fontSize = (Math.random() * 20 + 15) + 'px';
-            heartsContainer.appendChild(heart);
-        }
-
-        // Create twinkling stars
-        const starsContainer = document.getElementById('starsContainer');
-        for (let i = 0; i < 50; i++) {
-            const star = document.createElement('div');
-            star.className = 'star';
-            star.style.left = Math.random() * 100 + '%';
-            star.style.top = Math.random() * 100 + '%';
-            star.style.animationDelay = Math.random() * 3 + 's';
-            starsContainer.appendChild(star);
-        }
-    </script>
-</body>
-</html>
+  );
+}
